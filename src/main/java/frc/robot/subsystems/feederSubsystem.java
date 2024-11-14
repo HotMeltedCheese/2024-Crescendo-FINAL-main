@@ -3,6 +3,8 @@ package frc.robot.subsystems;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkBase.IdleMode;
 
+import static edu.wpi.first.units.Units.Micro;
+
 import java.lang.annotation.Target;
 
 import org.ejml.data.ZMatrix;
@@ -161,56 +163,13 @@ public class feederSubsystem extends SubsystemBase {
 
      @Override
     public void periodic(){
-        // //AIM
-        // m_bottomShootMotor.set(FeederSpinSpeed);
-        // m_topShootMotor.set(FeederSpinSpeed);
-
-        //FLY
-        // m_leftIndexMotor.set(FlywheelSpinSpeed); //0.5
-        // m_rightIndexMotor.set(FlywheelSpinSpeed); //-0.5, Reverse Polarity
-        
-        //ARM
         aPV = aPos();
-
         var isDisabled = false;
-        
         double aOutput = -aPID.calculate(aPV, aSetPoint);
-
-        
-        
-
-        // if(OVERRIDE == true){
-        //     if(aState == frc.robot.State.aState.M_UP){
-        //         m_LeftAimingMotor.set(0.1);
-        //         m_RightAimingMotor.set(0.1);
-
-        //     }
-
-        //     if(aState == frc.robot.State.aState.M_DOWN){
-        //         m_LeftAimingMotor.set(-0.1);
-        //         m_RightAimingMotor.set(-0.1);
-
-        //     }
-
-        //     if(aState == frc.robot.State.aState.IDLE){
-        //         m_LeftAimingMotor.set(0.01);
-        //         m_RightAimingMotor.set(0.01);
-
-        //     }
-        // } else {
-        //     //if within threshold
-        //     if(aPV < MIN && aPV > MAX){
-        //     m_LeftAimingMotor.set(0);
-        //     m_RightAimingMotor.set(0);
-        //     }
-        //     m_LeftAimingMotor.set(aOutput);
-        //     m_RightAimingMotor.set(aOutput);
-        // }
 
         //If desired setpoint is within MIN/MAX
          if(aSetPoint >= MIN && aSetPoint <= MAX){
-            m_LeftAimingMotor.set(aOutput); //was aOutput
-            m_RightAimingMotor.set(aOutput); //was aOutput
+            setAimMotors(aOutput);;
             isDisabled = false;
         }else{
              m_LeftAimingMotor.set(0);
@@ -237,65 +196,51 @@ public class feederSubsystem extends SubsystemBase {
 
     //FLYWHEEL SPIN STATE
     public void goIndexWheelState(sState state, double speed){
-        if(state == frc.robot.State.sState.OUT)
-        {
-            FlywheelSpinSpeed = speed; //0.4 BLACK wheels
-            m_leftIndexMotor.set(FlywheelSpinSpeed); //0.2
-            m_rightIndexMotor.set(FlywheelSpinSpeed); //-0.2, Reverse Polarity
-            sState = frc.robot.State.sState.OUT;
+        switch(state) {
+            case OUT:
+                setIndexMotorSpeed(speed);
+                break;
+            case IN:
+                setIndexMotorSpeed(-speed);
+                break;
+            case STOP:
+                setIndexMotorSpeed(0);
+                break;
         }
 
-        if(state == frc.robot.State.sState.IN)
-        {
-            FlywheelSpinSpeed = -speed; //was 0.2
-            m_leftIndexMotor.set(FlywheelSpinSpeed); //was +
-            m_rightIndexMotor.set(FlywheelSpinSpeed); //-0.5, Reverse Polarity
-            sState = frc.robot.State.sState.IN;
-        }
+        this.sState = state;
+    }
 
-        if(state == frc.robot.State.sState.STOP)
-        {
-            FlywheelSpinSpeed = 0;
-            m_leftIndexMotor.set(FlywheelSpinSpeed); //0.5
-            m_rightIndexMotor.set(FlywheelSpinSpeed); //-0.5, Reverse Polarity
-            sState = frc.robot.State.sState.STOP;
-        }
+    private void setIndexMotorSpeed(double motorSpeed) {
+        m_leftIndexMotor.set(motorSpeed);
+        m_rightIndexMotor.set(motorSpeed);
     }
     
 
+    private void setFeederMotors(double bottom, double top) {
+        m_bottomShootMotor.set(bottom);
+        m_topShootMotor.set(top);
+    }
+
+    private void setAimMotors(double speed) {
+        m_LeftAimingMotor.set(speed);
+        m_rightIndexMotor.set(speed);
+    }
+
     //AIM SPIN STATE
     public void goAimWheelState(fState state){ //shooter state
-        if(state == frc.robot.State.fState.OUT)
-        {
-            FeederSpinSpeed = 0.75; //Blue wheels
-            m_bottomShootMotor.set(FeederSpinSpeed);
-            m_topShootMotor.set(FeederSpinSpeed);
-            
-            m_bottomShootMotor.setInverted(false);
-            m_topShootMotor.setInverted(false);
-            fstate = frc.robot.State.fState.OUT;
+        switch (state) {
+            case OUT:
+                setFeederMotors(0.75, 0.75);
+                break;
+            case IN:
+                setFeederMotors(-0.2, 0);
+                break;
+            case STOP:
+                setFeederMotors(0, 0);
+                break;
         }
-
-        if(state == frc.robot.State.fState.IN)
-        {
-            FeederSpinSpeed = -0.2;
-            m_bottomShootMotor.set(FeederSpinSpeed);
-            m_topShootMotor.set(0);
-            
-            m_bottomShootMotor.setInverted(false);
-            m_topShootMotor.setInverted(false);
-            fstate = frc.robot.State.fState.IN;
-        }
-
-        if(state == frc.robot.State.fState.STOP)
-        {
-            m_bottomShootMotor.set(0);
-            m_topShootMotor.set(0);
-            fstate = frc.robot.State.fState.STOP;
-
-            
-        }
-        
+        this.fstate = state;
     }
 
 
@@ -311,62 +256,33 @@ public class feederSubsystem extends SubsystemBase {
 
     //ARM MOVEMENT STATE
      public void goFeederArmState(aState state){ 
-        if (state == frc.robot.State.aState.INTAKE_POS) {
-            OVERRIDE = false;
-            setASetPoint(toIntake);
-            aState = frc.robot.State.aState.INTAKE_POS;
-             
+        OVERRIDE = false;
+        switch (state) {
+            case INTAKE_POS:
+                aSetPoint = toIntake;
+                break;
+            case TRAP_POS:
+                aSetPoint = toTrap;
+                break;
+            case AIM_FAR:
+                aSetPoint = toFar;
+                break;
+            case AIM_NEAR:
+                aSetPoint = toNear;
+                break;
+            case HOME:
+                aSetPoint = MIN;
+                break;
+            case CLIMB:
+                aSetPoint = toClimb;
+                break;
+            case FLOAT:
+                aSetPoint = toFloat;
+                break;
+            default:
+                OVERRIDE = true;
         }
-        if (state == frc.robot.State.aState.TRAP_POS) {
-            OVERRIDE = false;
-            //she P on my I till i D
-            setASetPoint(toTrap);
-            aState = frc.robot.State.aState.TRAP_POS;
-        }
-        if (state == frc.robot.State.aState.AIM_FAR) {
-            OVERRIDE = false;
-            //she P on my I till i D
-            setASetPoint(toFar);
-            aState = frc.robot.State.aState.AIM_FAR;
-        }
-        if (state == frc.robot.State.aState.AIM_NEAR) {
-            OVERRIDE = false;
-            //she P on my I till i D
-            setASetPoint(toNear);
-            aState = frc.robot.State.aState.AIM_NEAR;
-        }
-        if (state == frc.robot.State.aState.HOME) {
-            OVERRIDE = false;
-            //she P on my I till i D
-            setASetPoint(MIN);
-            aState = frc.robot.State.aState.HOME;
-        }
-        if (state == frc.robot.State.aState.CLIMB) {
-            OVERRIDE = false;
-            //she P on my I till i D
-            setASetPoint(toClimb);
-            aState = frc.robot.State.aState.CLIMB;
-        }
-        if (state == frc.robot.State.aState.FLOAT) {
-            OVERRIDE = false;
-            //she P on my I till i D
-            setASetPoint(toFloat);
-            aState = frc.robot.State.aState.FLOAT;
-        }
-       
-        
-        if (state == frc.robot.State.aState.M_UP) {
-            OVERRIDE = true;
-            aState = frc.robot.State.aState.M_UP;
-        }
-         if (state == frc.robot.State.aState.M_DOWN) {
-            OVERRIDE = true;
-            aState = frc.robot.State.aState.M_DOWN;
-        }
-         if (state == frc.robot.State.aState.M_IDLE) {
-            OVERRIDE = true;
-            aState = frc.robot.State.aState.M_IDLE;
-        }
+        this.aState = state;
     }
 
     public void stopWheels(){

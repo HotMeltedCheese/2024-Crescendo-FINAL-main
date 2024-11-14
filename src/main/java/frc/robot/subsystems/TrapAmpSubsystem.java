@@ -2,6 +2,7 @@ package frc.robot.subsystems;
 
 import org.ejml.data.ZMatrix;
 
+import com.ctre.phoenix6.spns.SpnValue;
 import com.fasterxml.jackson.databind.AnnotationIntrospector.ReferenceProperty.Type;
 import com.revrobotics.CANSparkBase;
 import com.revrobotics.CANSparkFlex;
@@ -84,7 +85,6 @@ public class TrapAmpSubsystem extends SubsystemBase {
 
 
     public TrapAmpSubsystem(){
-
         m_trapMotor = new PWMSparkMax(frc.robot.Constants.AmpSystem.trapScorerID);
         m_RightArmMotor = new CANSparkMax(frc.robot.Constants.AmpSystem.RightAmArmID, MotorType.kBrushless);
         m_LeftArmMotor = new CANSparkMax(frc.robot.Constants.AmpSystem.LeftAmpArmID, MotorType.kBrushless);        //m_trapMotor.setIdleMode(IdleMode.kBrake);
@@ -92,9 +92,6 @@ public class TrapAmpSubsystem extends SubsystemBase {
         m_LeftArmMotor.setIdleMode(IdleMode.kCoast);
 
         tState = frc.robot.State.tState.STOP;
-        
-        // tPID_L = setPID(m_LeftArmMotor);
-        // tPID_R = setPID(m_RightArmMotor);
 
         t_Encoder = new DutyCycleEncoder(frc.robot.Constants.AmpSystem.ampEncoderID); //PWM Channel
         
@@ -105,9 +102,6 @@ public class TrapAmpSubsystem extends SubsystemBase {
         tFeedforward = new ArmFeedforward(0, 0.01, 0.01); //-0.15
         armPid = new PIDController(ffP, ffI, ffD);
         
-        //eState = frc.robot.State.eState.HOME;
-
-
         //ARM SETPOINTS
         MIN = 10;
         toHome = 174; //TODO: calibrate Trap ARM Setpoints
@@ -119,21 +113,11 @@ public class TrapAmpSubsystem extends SubsystemBase {
         IDLE = tPos();
         MAX = 180; //178
 
-
-        
         m_RightArmMotor.setInverted(false); //was true
         m_LeftArmMotor.setInverted(true); //was false
 
-        
-
         goTrapWheelState(frc.robot.State.tState.STOP);
         armPid.setSetpoint(toHome);
-
-        
-        //FAILSAFE
-
-
-        //tPID_R.setReference(0.5, CANSparkBase.ControlType.kPosition);
     }
 
     private double tPos() {
@@ -147,120 +131,46 @@ public class TrapAmpSubsystem extends SubsystemBase {
         //ARM
         tPV = tPos();
 
-        // // //if under
-        //  if(tPV < MIN)
-        //  {
-        //      ArmOutput = 0.1; 
-        //  }
-        //  //if over
-        //  if(tPV > MAX){
-        //      ArmOutput = -0.1;
-        //  }
-        
         ArmOutput = armPid.calculate(tPV);
-
-
-
-        
-        
-
-
         if(OVERRIDE == true){
-            if(eState == frc.robot.State.eState.M_UP){
-                m_LeftArmMotor.set(0.1);
-                m_RightArmMotor.set(0.1);
-
-            }
-
-            if(eState == frc.robot.State.eState.M_DOWN){
-                m_LeftArmMotor.set(-0.1);
-                m_RightArmMotor.set(-0.1);
-
-            }
-
-            if(eState == frc.robot.State.eState.IDLE){
-               m_LeftArmMotor.set(0.01);
-                m_RightArmMotor.set(0.01);
-
-            }
+           switch (eState) {
+            case M_DOWN:
+                setMotorValues(-0.1);
+                break;
+            case M_UP:
+                setMotorValues(0.1);
+            default:
+                setMotorValues(0.01);
+                break;
+           }
+        } else if(tPV > MIN && tPV < MAX) {
+            setMotorValues(ArmOutput);
         } else {
-            //if within threshold
-            if(tPV > MIN && tPV < MAX){
-            m_LeftArmMotor.set(ArmOutput);
-            m_RightArmMotor.set(ArmOutput); 
-            } else {
-            m_LeftArmMotor.set(0);
-            m_RightArmMotor.set(0);
-            }
+            setMotorValues(0);
         }
-        
 
-        // if(!OVERRIDE){ //Normal
-        // m_LeftArmMotor.set(speed);
-        // m_RightArmMotor.set(speed); 
-        // }else{ //Override
-        //     if(eState == frc.robot.State.eState.M_DOWN){
-        //          m_LeftArmMotor.set(-0.1);
-        //         m_RightArmMotor.set(-0.1);
-        //     }
-        //     if(eState == frc.robot.State.eState.M_UP){
-        //          m_LeftArmMotor.set(0.1);
-        //         m_RightArmMotor.set(0.1);
-        //     }
-    
-        
-        
-        
-
-        //temp comment
-        //m_LeftArmMotor.set(speed);
-        // //if(tPV > MIN && tPV <= MAX){
-        //     //postive power goes up 
-        //m_LeftArmMotor.set(tOutput);
-        // m_LeftArmMotor.setVoltage(3);
-        // m_RightArmMotor.setVoltage(3);
-        
-        // //}else{ //Failsafe
-        //     // m_LeftArmMotor.set(0);
-        //     // m_RightArmMotor.set(0);
-        //     // m_LeftArmMotor.disable();
-        //     // m_RightArmMotor.disable();
-        // //}
-        
         SmartDashboard.putNumber("Trap Encoder DIO#", t_Encoder.getSourceChannel());
         SmartDashboard.putNumber("T Setpoint", tSetPoint);
         SmartDashboard.putNumber("T encoder", tPos());
         SmartDashboard.putNumber("motor value", ArmOutput);
         SmartDashboard.putBoolean("Trap isOverride", OVERRIDE);
-        
-
     }
 
 
     //TRAP AMP Spinner
     public void goTrapWheelState(tState state){
-        if(state == frc.robot.State.tState.IN){
-            spinSpeed = 1;
-            tState = frc.robot.State.tState.IN;
+        switch(state) {
+            case IN:
+                spinSpeed = 1;
+                break;
+            case OUT:
+                spinSpeed = -1;
+                break;
+            case STOP:
+                spinSpeed = 0;
+                break;
         }
-
-        if(state == frc.robot.State.tState.OUT){
-            spinSpeed = -1;
-             tState = frc.robot.State.tState.OUT;
-            
-        }
-
-        if(state == frc.robot.State.tState.STOP){
-            spinSpeed = 0;
-             tState = frc.robot.State.tState.STOP;
-
-        }
-
-    }
-
-    //ARM SET SETPOINT
-    public void setTSetPoint(double setpoint){
-        tSetPoint = setpoint;
+        this.tState = state;
     }
 
     //ARM GET SETPOINT
@@ -268,51 +178,36 @@ public class TrapAmpSubsystem extends SubsystemBase {
         return tSetPoint;
     }
 
-
     //Arm
     public void goTrapArmState(eState state){
-        if(state == frc.robot.State.eState.HOME){
-            OVERRIDE = false;
-            setTSetPoint(toHome);
-            eState = frc.robot.State.eState.HOME;
-            
+        OVERRIDE = false;
+        switch(state) {
+            case HOME: 
+                tSetPoint = toHome;
+                break;
+            case TRAP_POS:
+                tSetPoint = toTrap;
+                break;
+            case AIM_POS:
+                tSetPoint = toAim;
+                break;
+            case M_UP: 
+                OVERRIDE = true;
+                break;
+            case M_DOWN:
+                OVERRIDE = true;
+                break;
+            case M_IDLE:
+                OVERRIDE = true;
+                break;
+            case IDLE:
+                break;
         }
-
-        if(state == frc.robot.State.eState.TRAP_POS){
-            OVERRIDE = false;
-            setTSetPoint(toTrap);
-            eState = frc.robot.State.eState.TRAP_POS;
-            
-        }
-
-        if(state == frc.robot.State.eState.AIM_POS){
-            OVERRIDE = false;
-            setTSetPoint(toAim);
-            eState = frc.robot.State.eState.AIM_POS;
-
-        }
-
-        if(state == frc.robot.State.eState.M_UP){
-            eState = frc.robot.State.eState.M_UP;
-            OVERRIDE = true;
-        }
-
-        if(state == frc.robot.State.eState.M_DOWN){
-            eState = frc.robot.State.eState.M_DOWN;
-            OVERRIDE = true;
-        }
-
-        if(state == frc.robot.State.eState.M_IDLE){
-            eState = frc.robot.State.eState.M_IDLE;
-            OVERRIDE = true;
-        }
-
-        if(!OVERRIDE)
-        {
-           armPid.setSetpoint(tSetPoint);
-        }
-
+        eState = state;
     }
 
-
+    private void setMotorValues(double motorValue){
+        m_LeftArmMotor.set(motorValue);
+        m_RightArmMotor.set(motorValue);
+    }
 }
