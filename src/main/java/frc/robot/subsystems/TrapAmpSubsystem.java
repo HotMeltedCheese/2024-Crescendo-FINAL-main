@@ -210,4 +210,12 @@ public class TrapAmpSubsystem extends SubsystemBase {
         m_LeftArmMotor.set(motorValue);
         m_RightArmMotor.set(motorValue);
     }
+
+    public eState getEstate() {
+        return eState;
+    }
+
+    public tState getTState() {
+        return tState;
+    }
 }
